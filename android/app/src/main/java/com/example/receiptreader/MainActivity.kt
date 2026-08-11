@@ -222,6 +222,15 @@ private fun ScanScreen() {
     }
 }
 
+/**
+ * 선택한 내역 id 집합을 Bundle 에 담기 위한 변환기.
+ * Set 은 그대로 못 담으므로 LongArray 로 바꿉니다.
+ */
+private val LongSetSaver: Saver<Set<Long>, LongArray> = Saver(
+    save = { it.toLongArray() },
+    restore = { it.toSet() },
+)
+
 // ======================================================================
 // 저장된 내역 화면
 // ======================================================================
@@ -249,6 +258,14 @@ private fun HistoryScreen() {
         return
     }
 
+    // --- 선택 ---
+    // 체크한 것이 없으면 전체가 대상입니다. 하나라도 체크하면 그것만 내보냅니다.
+    var checkedIds by rememberSaveable(stateSaver = LongSetSaver) {
+        mutableStateOf(emptySet<Long>())
+    }
+    // 삭제된 항목의 id 가 남아 있어도 여기서 걸러집니다.
+    val targets = if (checkedIds.isEmpty()) list else list.filter { it.id in checkedIds }
+
     // --- 내보내기 / 서버 보내기 ---
     var exportMsg by remember { mutableStateOf<String?>(null) }
     var uploading by remember { mutableStateOf(false) }
@@ -259,9 +276,9 @@ private fun HistoryScreen() {
         if (uri == null) { exportMsg = null; return@rememberLauncherForActivityResult }
         exportMsg = try {
             ctx.contentResolver.openOutputStream(uri)?.use { out ->
-                out.write(buildCsv(list).toByteArray(Charsets.UTF_8))
+                out.write(buildCsv(targets).toByteArray(Charsets.UTF_8))
             } ?: error("파일을 열 수 없습니다")
-            "저장했습니다 (${list.size}건)"
+            "저장했습니다 (${targets.size}건)"
         } catch (e: Exception) {
             "저장 실패: ${e.message}"
         }
@@ -279,6 +296,30 @@ private fun HistoryScreen() {
             return@Column
         }
 
+        // 무엇이 내보내지는지 버튼 위에 분명히 밝힙니다.
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(
+                if (checkedIds.isEmpty()) "내보낼 대상: 전체 ${list.size}건"
+                else "내보낼 대상: 선택한 ${targets.size}건",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = {
+                    checkedIds = if (checkedIds.size == list.size) emptySet()
+                                 else list.map { it.id }.toSet()
+                    exportMsg = null
+                }) { Text(if (checkedIds.size == list.size) "전체 해제" else "전체 선택") }
+
+                if (checkedIds.isNotEmpty()) {
+                    TextButton(onClick = { checkedIds = emptySet(); exportMsg = null }) {
+                        Text("선택 취소")
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = {
@@ -291,7 +332,7 @@ private fun HistoryScreen() {
             OutlinedButton(
                 onClick = {
                     exportMsg = try {
-                        shareCsv(ctx, buildCsv(list))
+                        shareCsv(ctx, buildCsv(targets))
                         null
                     } catch (e: Exception) {
                         "공유 실패: ${e.message}"
@@ -306,7 +347,9 @@ private fun HistoryScreen() {
                     exportMsg = null
                     scope.launch {
                         exportMsg = try {
-                            val r = withContext(Dispatchers.IO) { uploadHistory(ctx, list) }
+                            // 서버 전송도 같은 대상을 씁니다 — 위의 '내보낼 대상'
+                            // 표시와 어긋나지 않도록.
+                            val r = withContext(Dispatchers.IO) { uploadHistory(ctx, targets) }
                             "서버로 보냈습니다 (${r.saved}건 · 서버 누적 ${r.total}건)"
                         } catch (e: Exception) {
                             "전송 실패: ${describeError(e)}"
@@ -329,28 +372,43 @@ private fun HistoryScreen() {
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { r ->
-                Card(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedId = r.id }      // 탭하면 상세로
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text(r.store ?: "(상호 미상)", fontWeight = FontWeight.Bold)
-                            Text(r.total?.let { "${won.format(it)}원" } ?: "-",
-                                fontWeight = FontWeight.Bold)
-                        }
-                        Text(
-                            listOfNotNull(r.date, r.card).joinToString(" · ")
-                                .ifBlank { "(정보 없음)" },
-                            style = MaterialTheme.typography.bodySmall,
+                Card(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // 체크박스는 선택만, 카드 본문을 누르면 상세로 — 서로 겹치지 않게
+                        // 클릭 영역을 나눕니다.
+                        Checkbox(
+                            checked = r.id in checkedIds,
+                            onCheckedChange = { on ->
+                                checkedIds = if (on) checkedIds + r.id else checkedIds - r.id
+                                exportMsg = null
+                            },
                         )
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("품목 ${r.items.size}건",
-                                style = MaterialTheme.typography.bodySmall)
-                            if (r.notes.isNotEmpty()) {
-                                Text("⚠ ${r.notes.size}",
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .clickable { selectedId = r.id }
+                                .padding(vertical = 12.dp)
+                        ) {
+                            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                                Text(r.store ?: "(상호 미상)", fontWeight = FontWeight.Bold)
+                                Text(r.total?.let { "${won.format(it)}원" } ?: "-",
+                                    fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                listOfNotNull(r.date, r.card).joinToString(" · ")
+                                    .ifBlank { "(정보 없음)" },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                                Text("품목 ${r.items.size}건",
                                     style = MaterialTheme.typography.bodySmall)
+                                if (r.notes.isNotEmpty()) {
+                                    Text("⚠ ${r.notes.size}",
+                                        style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
                     }
