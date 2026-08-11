@@ -1,0 +1,39 @@
+# 주의: .gitignore 에서 '#' 는 줄 맨 앞에서만 주석입니다.
+# 패턴 뒤에 붙이면 주석이 아니라 파일 이름의 일부가 되어 규칙이 통째로 무효가 됩니다.
+# 설명은 반드시 패턴 위쪽 별도 줄에 적으세요.
+
+# --- 비밀 정보 (절대 커밋 금지) ---
+# Google 서비스 계정 키 등 자격증명 JSON
+*.json
+!package.json
+# 앱↔서버 인증 키 (서버가 처음 실행될 때 자동 생성)
+api_key.txt
+
+# --- 개인 데이터 (커밋 금지) ---
+# 실제 영수증 사진. 상호·날짜·품목·금액은 물론 생활 반경까지 드러나므로
+# 저장소에 올리지 않습니다. 파서를 고칠 때 로컬에서만 회귀 검증용으로 씁니다.
+Sample/
+# 인식 결과 CSV
+result/
+
+# --- 생성물 ---
+# 학습된 영수증 양식 DB
+profiles.db
+# 앱이 올린 인식 내역
+receipts.db
+
+# --- 파이썬 ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- 안드로이드 ---
+# SDK 경로 — PC마다 다르므로 커밋 금지
+android/local.properties
+# IDE 개인 설정 (경로·최근 작업 등)
+android/.idea/
+android/.gradle/
+android/build/
+android/app/build/
+*.apk

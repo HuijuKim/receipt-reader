@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 를 쓰므로 최소한의 테마만 둡니다. -->
+    <style name="Theme.ReceiptReader" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,13 @@
+# PC CLI(receipt_reader.py) + 백엔드 서버(server.py) 공통 의존성
+#   설치:  py -m pip install -r requirements.txt
+#   ※ 이 PC 에서는 'python' 이 아니라 'py' 입니다 (CLAUDE.md 참고)
+
+# OCR
+google-cloud-vision>=3.15
+opencv-python>=4.10
+numpy>=2.0
+
+# 백엔드 서버
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9   # UploadFile(multipart/form-data) 처리에 필요

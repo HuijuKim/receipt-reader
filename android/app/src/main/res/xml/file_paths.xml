@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 카메라로 찍은 사진을 저장할 앱 전용 캐시 폴더 -->
+    <cache-path name="captures" path="captures/" />
+    <!-- 공유로 내보낼 CSV 파일 -->
+    <cache-path name="exports" path="exports/" />
+</paths>
